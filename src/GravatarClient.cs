@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using System;
-using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
@@ -21,14 +21,19 @@ namespace Sufficit.Gateway.Gravatar
         /// </summary>
         /// <param name="email">e-mail address; normalized internally</param>
         /// <param name="size">optional square size override; falls back to options</param>
+        /// <param name="defaultStatus">optional absence status override (sent as default=); falls back to options</param>
         /// <param name="cancellationToken">cancellation token</param>
-        Task<GravatarAvatar?> GetAvatarByEmailAsync(string email, uint? size = null, CancellationToken cancellationToken = default);
+        Task<GravatarAvatar?> GetAvatarByEmailAsync(string email, uint? size = null, HttpStatusCode? defaultStatus = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         ///     Downloads the avatar image for a MD5 or SHA-256 hash.
         ///     Returns null when the hash has no Gravatar avatar.
         /// </summary>
-        Task<GravatarAvatar?> GetAvatarByHashAsync(string hash, uint? size = null, CancellationToken cancellationToken = default);
+        /// <param name="hash">MD5 (32 hex chars) or SHA-256 (64 hex chars) hash</param>
+        /// <param name="size">optional square size override; falls back to options</param>
+        /// <param name="defaultStatus">optional absence status override (sent as default=); falls back to options</param>
+        /// <param name="cancellationToken">cancellation token</param>
+        Task<GravatarAvatar?> GetAvatarByHashAsync(string hash, uint? size = null, HttpStatusCode? defaultStatus = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         ///     Gets the public profile for an e-mail address.
@@ -97,21 +102,22 @@ namespace Sufficit.Gateway.Gravatar
         private GravatarOptions CurrentOptions
             => _optionsMonitor?.CurrentValue ?? _staticOptions ?? new GravatarOptions();
 
-        public async Task<GravatarAvatar?> GetAvatarByEmailAsync(string email, uint? size = null, CancellationToken cancellationToken = default)
+        public async Task<GravatarAvatar?> GetAvatarByEmailAsync(string email, uint? size = null, HttpStatusCode? defaultStatus = null, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(email))
                 return null;
 
-            return await GetAvatarByHashAsync(GravatarHash.Sha256(email), size, cancellationToken).ConfigureAwait(false);
+            return await GetAvatarByHashAsync(GravatarHash.Sha256(email), size, defaultStatus, cancellationToken).ConfigureAwait(false);
         }
 
-        public async Task<GravatarAvatar?> GetAvatarByHashAsync(string hash, uint? size = null, CancellationToken cancellationToken = default)
+        public async Task<GravatarAvatar?> GetAvatarByHashAsync(string hash, uint? size = null, HttpStatusCode? defaultStatus = null, CancellationToken cancellationToken = default)
         {
             if (!GravatarHash.IsHash(hash))
                 throw new ArgumentException("invalid gravatar hash (expected 32 or 64 hex chars)", nameof(hash));
 
             var options = CurrentOptions;
-            var url = BuildAvatarUrl(hash, size, options);
+            var absence = defaultStatus ?? options.AvatarDefaultStatusCode;
+            var url = BuildAvatarUrl(hash, size, absence, options);
             _logger.LogTrace("gravatar avatar request: {url}", url);
 
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -121,7 +127,7 @@ namespace Sufficit.Gateway.Gravatar
                 .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                 .ConfigureAwait(false);
 
-            if (response.StatusCode == options.AvatarDefaultStatusCode)
+            if (response.StatusCode == absence)
                 return null;
 
             if (!response.IsSuccessStatusCode)
@@ -168,7 +174,7 @@ namespace Sufficit.Gateway.Gravatar
                 .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                 .ConfigureAwait(false);
 
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            if (response.StatusCode == HttpStatusCode.NotFound)
                 return null;
 
             if (!response.IsSuccessStatusCode)
@@ -205,7 +211,7 @@ namespace Sufficit.Gateway.Gravatar
             if (string.IsNullOrWhiteSpace(normalized))
                 return result;
 
-            result.Avatar = await GetAvatarByEmailAsync(normalized, null, cancellationToken).ConfigureAwait(false);
+            result.Avatar = await GetAvatarByEmailAsync(normalized, null, null, cancellationToken).ConfigureAwait(false);
             result.HasAvatar = result.Avatar != null;
 
             result.Profile = await GetProfileByEmailAsync(normalized, cancellationToken).ConfigureAwait(false);
@@ -214,12 +220,12 @@ namespace Sufficit.Gateway.Gravatar
             return result;
         }
 
-        private static string BuildAvatarUrl(string hash, uint? size, GravatarOptions options)
+        private static string BuildAvatarUrl(string hash, uint? size, HttpStatusCode absence, GravatarOptions options)
         {
             var effectiveSize = size.HasValue && size.Value > 0 ? size.Value : options.AvatarSize;
             return string.Format(options.AvatarBaseUrl, hash)
                 + "?s=" + effectiveSize
-                + "&d=" + (int)options.AvatarDefaultStatusCode;
+                + "&d=" + (int)absence;
         }
 
         private static void ApplyUserAgent(HttpRequestMessage request, GravatarOptions options)

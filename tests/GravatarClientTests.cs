@@ -126,3 +126,18 @@ public class GravatarClientTests
         Assert.Equal("test", result.Email);
     }
 }
+
+public class GravatarClientDefaultStatusTests
+{
+    [Fact]
+    public async Task GetAvatarByEmailAsync_HonorsDefaultStatusOverride()
+    {
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var client = new GravatarClient(new HttpClient(handler), new GravatarOptions());
+
+        var avatar = await client.GetAvatarByEmailAsync("test", null, HttpStatusCode.NoContent);
+
+        Assert.Null(avatar);
+        Assert.Contains("d=204", handler.LastRequest!.RequestUri!.Query);
+    }
+}

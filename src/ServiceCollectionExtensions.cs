@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
+using System.Linq;
 
 namespace Sufficit.Gateway.Gravatar
 {
@@ -13,6 +13,7 @@ namespace Sufficit.Gateway.Gravatar
         ///     Registers <see cref="GravatarOptions"/> bound to "Sufficit:Gateway:Gravatar"
         ///     and a typed <see cref="IGravatarClient"/> over the shared HttpClient
         ///     named <see cref="GravatarClient.HttpClientName"/>.
+        ///     Safe to call multiple times: the typed client is registered once.
         /// </summary>
         public static IServiceCollection AddSufficitGatewayGravatar(
             this IServiceCollection services,
@@ -21,8 +22,11 @@ namespace Sufficit.Gateway.Gravatar
             services.AddOptions<GravatarOptions>()
                 .Bind(configuration.GetSection(GravatarOptions.SectionName));
 
-            services.AddHttpClient(GravatarClient.HttpClientName)
-                .AddTypedClient<IGravatarClient, GravatarClient>();
+            if (services.All(d => d.ServiceType != typeof(IGravatarClient)))
+            {
+                services.AddHttpClient(GravatarClient.HttpClientName)
+                    .AddTypedClient<IGravatarClient, GravatarClient>();
+            }
 
             return services;
         }
