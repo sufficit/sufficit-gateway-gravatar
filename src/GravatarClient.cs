@@ -74,28 +74,21 @@ namespace Sufficit.Gateway.Gravatar
         private readonly ILogger _logger;
 
         /// <summary>
-        ///     DI-friendly constructor (typed client): reads live options from the monitor.
+        ///     Single typed-client-friendly constructor. Reads live options from the
+        ///     monitor when provided (DI hosts); otherwise falls back to a static
+        ///     options snapshot (manual hosts). Must remain the ONLY public
+        ///     constructor: AddTypedClient/ActivatorUtilities activation requires an
+        ///     unambiguous constructor taking HttpClient as its first parameter.
         /// </summary>
         public GravatarClient(
             HttpClient httpClient,
             IOptionsMonitor<GravatarOptions>? optionsMonitor = null,
+            GravatarOptions? options = null,
             ILogger<GravatarClient>? logger = null)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _optionsMonitor = optionsMonitor;
-            _logger = (ILogger?)logger ?? NullLogger.Instance;
-        }
-
-        /// <summary>
-        ///     Manual constructor for hosts without DI: static options snapshot.
-        /// </summary>
-        public GravatarClient(
-            HttpClient httpClient,
-            GravatarOptions options,
-            ILogger<GravatarClient>? logger = null)
-        {
-            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-            _staticOptions = options ?? throw new ArgumentNullException(nameof(options));
+            _staticOptions = options;
             _logger = (ILogger?)logger ?? NullLogger.Instance;
         }
 

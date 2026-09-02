@@ -28,7 +28,7 @@ public class GravatarClientTests
     private const string Sha256OfTest = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
 
     private static GravatarClient CreateClient(StubHandler handler)
-        => new GravatarClient(new HttpClient(handler), new GravatarOptions());
+        => new GravatarClient(new HttpClient(handler), options: new GravatarOptions());
 
     [Fact]
     public async Task GetAvatarByEmailAsync_ReturnsNull_OnConfiguredDefaultStatus()
@@ -133,7 +133,7 @@ public class GravatarClientDefaultStatusTests
     public async Task GetAvatarByEmailAsync_HonorsDefaultStatusOverride()
     {
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
-        var client = new GravatarClient(new HttpClient(handler), new GravatarOptions());
+        var client = new GravatarClient(new HttpClient(handler), options: new GravatarOptions());
 
         var avatar = await client.GetAvatarByEmailAsync("test", null, HttpStatusCode.NoContent);
 
