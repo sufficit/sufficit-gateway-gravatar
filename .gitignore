@@ -8,3 +8,5 @@ coverage/
 .DS_Store
 *.user
 *.suo
+# Worktrees (padrao): arvores de trabalho em <repo>/.worktrees/
+**/.worktrees/
